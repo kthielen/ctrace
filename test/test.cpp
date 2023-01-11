@@ -44,19 +44,52 @@ void generateQuotes(const std::string& path) {
   }
 }
 
+template <typename Input, typename QuoteType>
+void printQuotes(const std::string& path) {
+  Input file(path);
+  std::vector<std::string> symbolNames;
+  file.series("symbols", [&](datetime_t, const SymbolDef& sd) {
+    if (symbolNames.size() <= sd.id) {
+      symbolNames.resize(sd.id + 1);
+    }
+    symbolNames[sd.id] = sd.symbol;
+  });
+  file.series("quotes", [&](datetime_t dt, const QuoteType& qt) {
+    std::cout << dt << " (" << symbolNames[qt.first] << "): " << qt.second << std::endl;
+  });
+  file.run();
+}
+
 int main(int argc, char** argv) {
-  std::string outputFile = "quotes.log";
+  std::string file = "quotes.log";
   bool compressed = true;
-  if (argc > 1) {
-    outputFile = argv[1];
+  bool toWrite = true;
+  for (int i = 1; i < argc; ++i) {
+    std::string arg(argv[i]);
+    if (arg == "--compressed" || arg == "-c") {
+      compressed = true;
+    } else if (arg == "--uncompressed" || arg == "-u") {
+      compressed = false;
+    } else if (arg == "--write" || arg == "-w") {
+      toWrite = true;
+    } else if (arg == "--read" || arg == "-r") {
+      toWrite = false;
+    } else {
+      file = arg;
+    }
   }
-  if (argc > 2) {
-    compressed = std::string(argv[2]) != "false";
-  }
-  if (compressed) {
-    generateQuotes<ctrace::writer, CSymbolQuote>(outputFile);
+  if (toWrite) {
+    if (compressed) {
+      generateQuotes<ctrace::writer, CSymbolQuote>(file);
+    } else {
+      generateQuotes<trace::writer, SymbolQuote>(file);
+    }
   } else {
-    generateQuotes<trace::writer, SymbolQuote>(outputFile);
+    if (compressed) {
+      printQuotes<ctrace::reader, CSymbolQuote>(file);
+    } else {
+      printQuotes<trace::reader, SymbolQuote>(file);
+    }
   }
   return 0;
 }
